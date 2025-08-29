@@ -144,7 +144,7 @@ def analyse_profile(resume_content, job_desc, user_question):
 # --- Main App UI ---
 
 # App Header
-st.header("📄 Scan My :blue[CV.ai]", divider="green")
+st.header("📄 Analyze your :blue[Resume]", divider="green")
 st.subheader("💡 Tips for Using the Application")
 
 notes = '''
@@ -163,7 +163,7 @@ with st.sidebar:
         type=["pdf", "docx", "png", "jpg", "jpeg"]
     )
     st.markdown("---")
-    st.markdown("👨‍💻 Created by: :red[Rajat Latwal]")
+    st.markdown("👨‍💻 Created by: :red[Ridham Vashishth]")
 
 # Job Description Input
 st.subheader("📝 Enter the Job Description", divider=True)
