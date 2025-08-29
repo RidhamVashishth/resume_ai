@@ -1,72 +1,92 @@
 import streamlit as st
-from dotenv import load_dotenv
+import google.generativeai as genai
 import os
 
-# It's better to handle imports at the top
-from pdf_processing import process_pdf
-from analysis import analyse_profile
+# Configure the Gemini API key
+try:
+    api_key = os.getenv('GOOGLE_API_KEY')
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY not found in environment variables.")
+    genai.configure(api_key=api_key)
+except Exception as e:
+    st.error(f"API Configuration Error: {e}")
 
-# Load environment variables
-load_dotenv()
+# Set up the Gemini model
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# App Header
-st.header("📄 Scan My :blue[CV.ai]", divider="green")
-st.subheader("💡 Tips for Using the Application")
+def analyse_profile(resume_text, job_desc, user_question):
+    """
+    Analyzes a resume against a job description using the Gemini model.
+    Handles both a default analysis and specific user questions.
 
-notes = '''
-- **Upload Your Resume (PDF only):** Please upload your resume in PDF format.
-- **Paste the Job Description:** Copy and paste the full job description for an accurate analysis.
-- **Get AI-Powered Insights:** Leverage AI to see how your resume matches up against the job description.
-'''
-st.markdown(notes)
+    Args:
+        resume_text: The text content of the resume.
+        job_desc: The text content of the job description.
+        user_question: A specific question from the user (can be empty).
 
-# Sidebar
-with st.sidebar:
-    st.subheader("📥 Upload Your Resume")
-    pdf_doc = st.file_uploader("Choose a resume (PDF format)", type=["pdf"])
-    st.markdown("---")
-    st.markdown("👨‍💻 Created by: :red[Rajat Latwal]")
+    Returns:
+        A formatted string containing the AI's analysis.
+    """
+    if not resume_text or not job_desc:
+        return "Error: Resume text or job description is missing."
 
-# Job Description Input
-st.subheader("📝 Enter the Job Description", divider=True)
-job_desc = st.text_area(
-    label="Paste the job description from job boards (e.g., LinkedIn, Indeed)",
-    height=300,
-    placeholder="e.g., We're looking for a Data Analyst with experience in Python, SQL, and Tableau..."
-)
+    # --- Dynamic Prompting Logic ---
+    if user_question:
+        # If the user asked a specific question, use the HR Executive persona to answer.
+        input_prompt = f"""
+        You are an expert HR Executive and a professional career coach. Your task is to answer the user's specific question using their resume and the provided job description as context. Provide advice as if you were guiding a candidate through the hiring process.
 
-# --- New Feature: User Question Input ---
-st.subheader("❓ Ask a Specific Question (Optional)", divider=True)
-user_question = st.text_input(
-    label="Ask a question about your resume or provide a custom instruction.",
-    placeholder="e.g., How can I rephrase my experience at XYZ Corp to highlight leadership skills?"
-)
+        **Resume Text:**
+        ```
+        {resume_text}
+        ```
 
+        **Job Description:**
+        ```
+        {job_desc}
+        ```
 
-submit = st.button("🚀 Get AI-Powered Insights")
+        **User's Question:**
+        "{user_question}"
 
-if submit:
-    # --- 1. Input Validation ---
-    if pdf_doc is not None and job_desc.strip() != "":
-        # --- 2. Use a Spinner for better UX ---
-        with st.spinner("Analyzing your profile... This may take a moment."):
-            try:
-                # Extract text from the PDF
-                resume_text = process_pdf(pdf_doc)
-
-                # Get the analysis from the Gemini model, now with the user's question
-                analysis_result = analyse_profile(
-                    resume_text=resume_text,
-                    job_desc=job_desc,
-                    user_question=user_question
-                )
-
-                # Display the result
-                st.subheader("🔍 Analysis Report")
-                st.markdown(analysis_result)
-
-            except Exception as e:
-                st.error(f"An error occurred during analysis: {e}")
+        Please provide a direct and helpful answer to the user's question, using the resume and job description to inform your expert response.
+        """
     else:
-        st.error("⚠️ Please upload your resume and paste the job description before submitting.")
+        # If no specific question is asked, perform the default, comprehensive analysis from an HR perspective.
+        input_prompt = f"""
+        You are an expert HR Executive and a professional career coach with deep experience in using Applicant Tracking Systems (ATS). 
+        Your task is to evaluate a candidate's resume against a provided job description from a hiring manager's perspective.
+
+        **Resume Text:**
+        ```
+        {resume_text}
+        ```
+
+        **Job Description:**
+        ```
+        {job_desc}
+        ```
+
+        Please provide a detailed analysis with the following structure, using Markdown for formatting:
+
+        **1. Overall Match Score:**
+        - Provide a percentage score representing how well the resume matches the job description (e.g., 85%).
+        - Briefly justify the score in one sentence.
+
+        **2. Strengths:**
+        - In bullet points, list the key skills, experiences, or qualifications from the resume that are a strong match for the job description.
+
+        **3. Areas for Improvement:**
+        - In bullet points, identify crucial keywords, skills, or experiences mentioned in the job description that are missing from the resume.
+
+        **4. Actionable Recommendations:**
+        - In bullet points, provide specific, actionable advice on how the candidate can improve their resume to better align with this job description. For example, suggest adding specific project details, quantifying achievements, or incorporating missing keywords.
+        """
+
+    try:
+        response = model.generate_content(input_prompt)
+        return response.text
+    except Exception as e:
+        st.error(f"Error during AI analysis: {e}")
+        return "Sorry, an error occurred while analyzing the profile."
 
